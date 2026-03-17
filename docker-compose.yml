@@ -1,0 +1,24 @@
+services:
+  aurion-sync:
+    build: .
+    container_name: aurion-gcal
+    restart: "no"
+    volumes:
+      - ./config.js:/app/config.js:ro
+      - ./service-account-key.json:/app/service-account-key.json:ro
+      - ./logs:/app/logs
+      - ./debug:/app/debug
+    environment:
+      - NODE_ENV=production
+      - TZ=Europe/Paris
+    security_opt:
+      - seccomp:unconfined
+    shm_size: '256mb'
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2.0'
+
+# Run a manual sync:  docker compose run --rm aurion-sync
+# View logs:          docker compose logs aurion-sync

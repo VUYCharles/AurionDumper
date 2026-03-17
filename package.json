@@ -8,7 +8,7 @@
     "setup-oauth": "node scripts/oauth-setup.js",
     "consolidate": "node consolidate.js",
     "sync-all": "node main.js && node consolidate.js",
-    "sync-once": "node sync-once.js"
+    "export": "node export-ics.js"
   },
   "engines": {
     "node": ">=18.0.0"

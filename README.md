@@ -1,37 +1,57 @@
 # aurion-gcal
 
-Synchronise automatiquement l'emploi du temps Aurion ENAC vers Google Agenda.
-
-Le script se connecte à Aurion, navigue semaine par semaine dans le planning, télécharge l'export ICS de chaque semaine et insère les événements dans Google Agenda. Conçu pour tourner en tâche planifiée quotidienne sur un LXC Proxmox.
+Exporte l'emploi du temps Aurion ENAC vers un fichier `.ics` ou synchronise automatiquement Google Agenda.
 
 ---
 
-## Pourquoi c'est compliqué
+## Export rapide (aucune configuration)
 
-Aurion est construit sur **PrimeFaces (JSF)**. Chaque requête porte un token `javax.faces.ViewState` à usage unique qui encode l'état côté serveur. Les approches simples échouent toutes :
+```bash
+git clone https://github.com/your-username/aurion-gcal
+cd aurion-gcal
+npm install
+node export-ics.js
+```
 
-| Approche | Problème |
+```
+Aurion username (email) : prenom.nom@enac.fr
+Aurion password         : **************
+Weeks to export   [17]  : 17
+
+  12-2026 ... 19 event(s)
+  13-2026 ... 21 event(s)
+  ...
+
+147 event(s) exported to aurion-2026-03-17.ics
+```
+
+Importez le fichier `.ics` dans votre agenda :
+
+- **Google Agenda** — Paramètres ⚙ → Importer et exporter → Importer
+- **Apple Agenda** — Fichier → Importer
+- **Outlook** — Fichier → Ouvrir et exporter → Importer/Exporter
+
+---
+
+## Automatisation sur LXC Proxmox
+
+La synchronisation automatique repose sur `main.js`, qui écrit directement dans Google Agenda via l'API. Elle tourne quotidiennement sur un LXC Proxmox.
+
+### 1. Créer le LXC
+
+Dans l'interface Proxmox, créer un conteneur avec ces paramètres :
+
+| Paramètre | Valeur |
 |---|---|
-| Écrire dans `form:week` puis POST | Le ViewState encode toujours la semaine courante — le serveur l'ignore |
-| Réutiliser un ViewState | Il est consommé au premier appel, les suivants retournent des données périmées |
-| Recharger la page avant chaque semaine | Remet le navigateur à la semaine réelle, les clics s'accumulent mais la position repart de zéro |
-| Intercepter l'ICS dans Puppeteer | Le browser consomme la réponse `application/octet-stream` avant que JS puisse y accéder |
-| Lire `form:week` pour connaître la position | PrimeFaces ne met pas à jour ce champ après une navigation Ajax |
+| Template | ubuntu-22.04-standard |
+| RAM | 1024 Mo |
+| CPU | 2 cœurs |
+| Disque | 8 Go |
 
-**Ce qui fonctionne** : charger la page une seule fois, avancer d'un clic `fc-next-button` par semaine (ce qui met à jour le ViewState côté serveur), lire la position depuis le titre FullCalendar, puis rejouer le POST du bouton Download via `node-fetch` avec les cookies et le ViewState courant.
+Avant de démarrer : **Options → Features → cocher Nesting**.
+Sans ça, Chromium ne peut pas s'exécuter dans le conteneur.
 
----
-
-## Installation sur LXC Proxmox
-
-### 1. Créer le conteneur
-
-- Template : Ubuntu 22.04
-- RAM : 1024 Mo, CPU : 2 cœurs, Disque : 8 Go
-- **Obligatoire** : `Options → Features → Nesting: activé`
-  *(sans ça, Chromium refuse de démarrer dans un conteneur non privilégié)*
-
-### 2. Installer
+### 2. Installer le projet
 
 ```bash
 # Depuis votre machine
@@ -42,170 +62,85 @@ cd /opt && apt install -y unzip && unzip aurion-gcal.zip && cd aurion-gcal
 bash scripts/setup-lxc.sh
 ```
 
-Le script installe Node.js 20, Chromium et les dépendances npm, puis configure un service systemd avec un timer quotidien à 4h.
+Le script installe Node.js 20, Chromium et les dépendances, puis crée un service systemd avec un timer quotidien à 4h.
 
-### 3. Configurer
+### 3. Configurer Google Agenda
 
-```bash
-cp config.example.js config.js
-nano config.js
-```
+Deux options :
 
-### 4. Tester et activer
+**Service Account** (recommandé pour un serveur)
 
-```bash
-node main.js                      # test manuel
-systemctl start aurion-gcal.timer # activer la sync quotidienne
-```
-
----
-
-## Authentification Google
-
-Deux méthodes disponibles, choisissez-en une.
-
-### Service Account (recommandé pour un serveur)
-
-1. [Google Cloud Console](https://console.cloud.google.com) → créer un projet → activer l'**API Google Calendar**
-2. *IAM → Comptes de service → Créer* → télécharger la clé JSON
-3. Dans Google Agenda, partager votre agenda avec l'email du service account (droits : *"Modifier les événements"*)
-4. Dans `config.js` :
+1. [console.cloud.google.com](https://console.cloud.google.com) → créer un projet → activer l'**API Google Calendar**
+2. IAM → Comptes de service → Créer → télécharger la clé JSON → placer dans le projet
+3. Google Agenda → Paramètres de l'agenda → Partager → ajouter l'email du service account avec les droits *"Modifier les événements"*
 
 ```js
 const serviceAccountKeyFile = './service-account-key.json';
 const oauth2Credentials     = null;
 ```
 
-### OAuth2 (usage personnel)
-
-À faire **sur votre machine locale** (pas le LXC) :
+**OAuth2** (sur votre machine locale, pas le LXC)
 
 ```bash
 GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx node scripts/oauth-setup.js
 ```
 
-Créez d'abord un client OAuth2 de type *Application Web* avec `http://localhost:3000/oauth2callback` comme URI de redirection, et ajoutez votre email en utilisateur test dans l'écran de consentement.
+Ouvrez le lien affiché, autorisez, copiez le bloc dans `config.js`.
 
-Copiez le bloc affiché dans `config.js` :
+### 4. Créer config.js
 
-```js
-const serviceAccountKeyFile = '';
-const oauth2Credentials = {
-  clientId:     '...',
-  clientSecret: '...',
-  redirectUri:  'http://localhost:3000/oauth2callback',
-  refreshToken: '...',
-};
+```bash
+cp config.example.js config.js
+nano config.js
 ```
 
----
-
-## Configuration
-
 ```js
-const aurionUrl        = 'https://aurion-prod.enac.fr/faces/Login.xhtml';
-const username         = 'prenom.nom@enac.fr';
-const password         = 'votre_mot_de_passe';
-
-// Calcule automatiquement le nombre de semaines couvrant les 4 prochains mois
-const weeksToScrape = (() => {
-  const now = new Date(), end = new Date(now);
-  end.setMonth(end.getMonth() + 4);
-  return Math.ceil((end - now) / (7 * 24 * 60 * 60 * 1000));
-})();
-
-const googleCalendarId = 'primary'; // ou l'ID d'un agenda secondaire
-
-const useTor  = false; // activer si votre IP est bloquée par Aurion
-const torPort = 9050;
+const aurionUrl            = 'https://aurion-prod.enac.fr/faces/Login.xhtml';
+const username             = 'prenom.nom@enac.fr';
+const password             = 'votre_mot_de_passe';
+const weeksToScrape        = 17;               // ~4 mois
+const googleCalendarId     = 'primary';        // ou l'ID d'un agenda secondaire
+const consolidatedCalendarId = 'id2';          // agenda pour les blocs fusionnés
+const consolidationGapMinutes = 20;
 ```
 
----
+### 5. Tester
 
-## Modifier l'heure de synchronisation
+```bash
+node main.js
+```
+
+### 6. Activer la sync automatique
+
+```bash
+systemctl start aurion-gcal.timer
+systemctl status aurion-gcal.timer  # vérifie la prochaine exécution
+tail -f logs/sync.log               # suit les logs en temps réel
+```
+
+La sync tourne tous les jours à 4h. Pour changer l'heure :
 
 ```bash
 nano /etc/systemd/system/aurion-gcal.timer
-# Modifier : OnCalendar=*-*-* 04:00:00
-
+# OnCalendar=*-*-* 06:00:00
 systemctl daemon-reload && systemctl restart aurion-gcal.timer
-tail -f logs/sync.log
 ```
+
+### 7. Consolidation (optionnel)
+
+`consolidate.js` fusionne les cours consécutifs séparés de moins de 20 minutes dans un agenda séparé. Lancé automatiquement après la sync par le service systemd.
 
 ---
 
 ## Dépannage
 
-**Chromium crash au démarrage** → activer `Nesting` dans les Features du LXC Proxmox.
+**Chromium crash** → vérifier que Nesting est activé dans les Features du LXC.
 
 **`libasound.so.2` manquant** → `apt install -y libasound2`
 
-**Erreur 404 Google Calendar** → vérifier `googleCalendarId` dans `config.js`. Utiliser `'primary'` pour l'agenda principal, ou partager l'agenda avec le service account.
+**Erreur 404 Google Agenda** → `googleCalendarId` incorrect, ou agenda non partagé avec le service account.
 
-**Semaine vide (ICS de 133 octets)** → comportement normal, Aurion retourne un ICS vide pour les semaines sans cours (vacances, fin de cursus).
-
----
-
-## Usage ponctuel
-
-Pour une synchronisation manuelle sans configuration permanente :
-
-```bash
-node sync-once.js
-```
-
-Le script demande interactivement les identifiants Aurion, les credentials OAuth2 Google et l'ID de l'agenda cible, puis effectue la sync et quitte. Aucun fichier `config.js` requis.
-
-Le refresh token s'obtient une seule fois avec :
-
-```bash
-GOOGLE_CLIENT_ID=xxx GOOGLE_CLIENT_SECRET=xxx node scripts/oauth-setup.js
-```
-
----
-
-## Consolidation
-
-Un second script fusionne les événements consécutifs de l'agenda source dans un agenda séparé.
-
-Deux événements sont fusionnés si l'écart entre eux est inférieur ou égal à 20 minutes. Le bloc résultant couvre le début du premier et la fin du dernier événement. Les titres sont concaténés.
-
-**Configuration** dans `config.js` :
-
-```js
-const consolidatedCalendarId  = 'xxx@group.calendar.google.com'; // agenda de destination
-const consolidationGapMinutes = 20; // seuil en minutes (modifiable)
-```
-
-**Lancement** :
-
-```bash
-node consolidate.js          # consolidation seule
-npm run sync-all             # sync Aurion + consolidation enchaînées
-```
-
-La consolidation est automatiquement enchaînée après la sync dans le service systemd installé par `setup-lxc.sh`.
-
----
-
-## Structure
-
-```
-aurion-gcal/
-├── main.js                   Sync Aurion → Google Agenda (mode automatique)
-├── sync-once.js              Sync interactive one-shot (sans config.js)
-├── consolidate.js            Fusion des blocs consécutifs
-├── config.example.js         Template de configuration
-├── src/
-│   ├── scraper.js            Scraping Aurion via Puppeteer
-│   ├── google-calendar.js    Client API Google Agenda
-│   └── consolidate.js        Logique de fusion et écriture
-├── scripts/
-│   ├── setup-lxc.sh          Installation automatique sur LXC
-│   └── oauth-setup.js        Obtenir un refresh token OAuth2
-├── Dockerfile
-└── docker-compose.yml
-```
+**Semaine vide (ICS 133 octets)** → comportement normal pour une semaine sans cours.
 
 ---
 
