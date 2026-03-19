@@ -1,7 +1,7 @@
 /**
  * oauth-setup.js
  *
- * Obtains a Google OAuth2 refresh token for use with aurion-gcal.
+ * Obtains a Google OAuth2 refresh token for use with x-gcal.
  *
  * This script must be run on a machine with a web browser because
  * the authorisation flow requires user interaction. It is not
