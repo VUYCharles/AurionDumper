@@ -3,12 +3,12 @@
 const readline = require('readline');
 const fs       = require('fs');
 const path     = require('path');
-const AurionScraper = require('./src/scraper');
+const xScraper = require('./src/scraper');
 
 /**
  * export-ics.js
  *
- * Asks for Aurion credentials, scrapes the timetable, and writes
+ * Asks for x credentials, scrapes the timetable, and writes
  * a single .ics file importable into any calendar application.
  *
  * No Google API, no OAuth, no config file required.
@@ -77,14 +77,14 @@ function buildICS(events) {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//aurion-gcal//export-ics//EN',
+    'PRODID:-//x-gcal//export-ics//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'X-WR-TIMEZONE:Europe/Paris',
   ];
 
   for (const ev of events) {
-    const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@aurion-gcal`;
+    const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}@x-gcal`;
     lines.push('BEGIN:VEVENT');
     lines.push(foldLine(`UID:${uid}`));
     lines.push(`DTSTAMP:${toIcalDate(new Date())}`);
@@ -102,18 +102,18 @@ function buildICS(events) {
 
 async function main() {
   console.log('');
-  console.log('aurion-gcal — ICS export');
+  console.log('x-gcal — ICS export');
   console.log('');
 
-  const username      = await ask('Aurion username (email) : ');
-  const password      = await ask('Aurion password         : ');
+  const username      = await ask('x username (email) : ');
+  const password      = await ask('x password         : ');
   const rawWeeks      = await ask('Weeks to export   [17]  : ');
   const weeksToScrape = parseInt(rawWeeks, 10) || 17;
 
   console.log('');
 
   const config = {
-    aurionUrl:    'https://aurion-prod.enac.fr/faces/Login.xhtml',
+    xUrl:    'https://x-prod.x.fr/faces/Login.xhtml',
     username,
     password,
     weeksToScrape,
@@ -121,7 +121,7 @@ async function main() {
     torPort:      9050,
   };
 
-  const scraper   = new AurionScraper(config);
+  const scraper   = new xScraper(config);
   const allEvents = [];
 
   try {
@@ -149,7 +149,7 @@ async function main() {
   }
 
   const icsContent = buildICS(allEvents);
-  const filename   = `aurion-${new Date().toISOString().slice(0, 10)}.ics`;
+  const filename   = `x-${new Date().toISOString().slice(0, 10)}.ics`;
   const filepath   = path.join(process.cwd(), filename);
 
   fs.writeFileSync(filepath, icsContent, 'utf8');
