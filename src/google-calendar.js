@@ -12,7 +12,7 @@ const path = require('path');
  *   deleteAllInRange(timeMin, timeMax)
  *     Removes every event previously created by this tool within
  *     the given time range. Events are identified by a private
- *     extended property (source=aurion-scraper) set at creation
+ *     extended property (source=x-scraper) set at creation
  *     time. Pagination is handled automatically.
  *
  *   insertEvents(events)
@@ -93,7 +93,7 @@ class GoogleCalendarSync {
   // ---------------------------------------------------------------------------
 
   /**
-   * Deletes all events tagged with source=aurion-scraper within
+   * Deletes all events tagged with source=x-scraper within
    * [timeMin, timeMax]. Called once before the scraping loop to
    * clear any data from previous runs, regardless of how many
    * weeks they covered.
@@ -114,7 +114,7 @@ class GoogleCalendarSync {
         timeMax,
         singleEvents:            true,
         maxResults:              500,
-        privateExtendedProperty: 'source=aurion-scraper',
+        privateExtendedProperty: 'source=x-scraper',
       };
 
       if (pageToken) params.pageToken = pageToken;
@@ -206,7 +206,7 @@ class GoogleCalendarSync {
       start:       { dateTime: ev.start, timeZone: 'Europe/Paris' },
       end:         { dateTime: ev.end,   timeZone: 'Europe/Paris' },
       extendedProperties: {
-        private: { source: 'aurion-scraper' },
+        private: { source: 'x-scraper' },
       },
     };
 
